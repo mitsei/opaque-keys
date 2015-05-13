@@ -13,6 +13,7 @@ store scoped data alongside the definition and usage of the particular XBlock us
 commenting on.
 """
 
+from bson.son import SON
 from opaque_keys.edx.keys import AsideDefinitionKey, AsideUsageKey, DefinitionKey, UsageKey
 
 
@@ -113,6 +114,40 @@ class AsideUsageKeyV1(AsideUsageKey):  # pylint: disable=abstract-method
     @property
     def block_type(self):
         return self.usage_key.block_type
+
+    @property
+    def category(self):
+        """this is deprecated, but still used in mongo/draft.py, line 97
+        get_item():
+            # if the item is direct-only, there can only be a published version
+            elif usage_key.category in DIRECT_ONLY_CATEGORIES:
+                return get_published()
+        """
+        return 'aside-usage-v1'
+
+    def to_deprecated_son(self, prefix='', tag='i4x'):
+        """
+        Returns a SON object that represents this location
+        cjshaw@mit.edu
+	copied from opaque_keys/edx/locator.py
+	"""
+        # This preserves the old SON keys ('tag', 'org', 'course', 'category', 'name', 'revision'),
+        # because that format was used to store data historically in mongo
+
+        # adding tag b/c deprecated form used it
+        son = SON({prefix + 'tag': tag})
+        for field_name in ('org', 'course'):
+            # Temporary filtering of run field because deprecated form left it out
+            son[prefix + field_name] = getattr(self.course_key, field_name)
+        for (dep_field_name, field_name) in [('category', 'block_type'), ('name', 'block_id')]:
+            son[prefix + dep_field_name] = getattr(self, field_name)
+        rev = getattr(self.course_key, 'branch')
+	if rev is None:
+		son[prefix + 'revision'] = 'draft'
+	else:
+		son[prefix + 'revision'] = rev
+        return son
+
 
     @property
     def definition_key(self):
